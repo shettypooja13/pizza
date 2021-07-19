@@ -1,4 +1,7 @@
 const Menu  = require('../app/models/menu');
+const User = require('../app/models/user')
+const bcrypt = require('bcrypt');
+const passport = require('passport');
 
 function initRoutes(app){
     app.get('/', async(req,res) => {
@@ -12,9 +15,66 @@ function initRoutes(app){
     app.get('/login', (req,res) => {
         res.render('auth/login');
     });
+    app.post('/login', (req,res,next) => {
+        passport.authenticate('local', (err,user,info)=>{
+            if(err){
+                req.flash('error',info.message)
+                next(err)
+            }
+            if(!user){
+                req.flash('error',info.message)
+                res.redirect("/login") 
+            }
+            req.logIn(user, (err)=>{
+                if(err){
+                    req.flash('error',info.message)
+                    next(err)
+                }
+                res.redirect('/')
+            })
+        })(req,res,next)
+    })
     app.get('/register',(req,res) => {
         res.render('auth/register');
     });
+    app.post('/register', async(req,res) => {
+        const {name,email,password} = req.body
+        //console.log(req.body)
+        if(!name || !email || !password){
+            req.flash('error','All fields are required')
+            req.flash('name', name)
+            req.flash('email', email)
+            res.redirect('/register')
+        }
+        
+        //Check if email exist
+        User.exists({email: email}, (error,result) => {
+            if(result){
+                req.flash('error', 'Email already taken')
+                req.flash('name',name)
+                req.flash('email',email)
+                res.redirect('/register')
+            }
+        })
+
+        //Hash password
+        const hashPassword = await bcrypt.hash(password, 10)
+
+        //Create a user
+        const user = new User({
+            name: name,
+            email: email,
+            password: hashPassword
+        })
+        user.save().then((user) => {
+            //Login
+            res.redirect("/")
+        }).catch((err) => {
+            req.flash('error','Something went wrong')
+            res.redirect('/register')
+        })
+    })
+
     app.post('/update-cart',(req,res) => {
 
 //for the first time, create the cart and add basic object structure
