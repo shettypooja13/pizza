@@ -28,7 +28,6 @@ let mongoStore = new MongoDbStore({
     collection: 'sessions'
 })
 
-
 //Session Config
 app.use(session({
     secret: "thisismysecret",

@@ -1,7 +1,16 @@
 const Menu  = require('../app/models/menu');
 const User = require('../app/models/user')
+const Order = require('../app/models/order');
+const moment = require('moment');
 const bcrypt = require('bcrypt');
 const passport = require('passport');
+const guest = require('../app/http/middlewares/guest')
+const auth = require('../app/http/middlewares/auth')
+const admin = require('../app/http/middlewares/admin')
+
+const _getRedirectUrl = (req) => {
+    return req.user.role === 'admin' ? '/admin/orders' : '/customer/orders'
+}
 
 function initRoutes(app){
     app.get('/', async(req,res) => {
@@ -12,14 +21,20 @@ function initRoutes(app){
     app.get('/cart', (req,res) => {
         res.render('customers/cart');
     });
-    app.get('/login', (req,res) => {
+    app.get('/login',guest, (req,res) => {
         res.render('auth/login');
     });
     app.post('/login', (req,res,next) => {
+        const {email,password} = req.body
+        //console.log(req.body)
+        if(!email || !password){
+            req.flash('error','All fields are required')
+            res.redirect('/login')
+        }
         passport.authenticate('local', (err,user,info)=>{
             if(err){
                 req.flash('error',info.message)
-                next(err)
+                //next(err)
             }
             if(!user){
                 req.flash('error',info.message)
@@ -28,13 +43,13 @@ function initRoutes(app){
             req.logIn(user, (err)=>{
                 if(err){
                     req.flash('error',info.message)
-                    next(err)
+                   // next(err)
                 }
-                res.redirect('/')
+                res.redirect(_getRedirectUrl(req))
             })
         })(req,res,next)
     })
-    app.get('/register',(req,res) => {
+    app.get('/register',guest,(req,res) => {
         res.render('auth/register');
     });
     app.post('/register', async(req,res) => {
@@ -68,7 +83,7 @@ function initRoutes(app){
         })
         user.save().then((user) => {
             //Login
-            res.redirect("/")
+            res.redirect("/login")
         }).catch((err) => {
             req.flash('error','Something went wrong')
             res.redirect('/register')
@@ -106,6 +121,53 @@ function initRoutes(app){
        }
        res.json({totalQty: req.session.cart.totalQty });
     });
+
+    app.get('/customer/orders',auth, async(req,res) => {
+        const orders = await Order.find({ customerId: req.user._id },null,{sort: {'createdAt':-1}})
+        res.render('customers/orders', {orders:orders, moment:moment})
+    })
+
+    app.post("/orders",auth,(req,res) => {
+        console.log(req.body)
+        //validate the request
+        const {phone,address} = req.body
+        if(!phone || !address) {
+            req.flash('error','All fields are required')
+            res.redirect('/cart')
+        }
+        const order = new Order({
+            customerId: req.user._id,
+            items: req.session.cart.items,
+            phone: phone,
+            address: address
+        })
+        order.save().then(result => {
+            req.flash('success','Order placed successfully')
+            delete req.session.cart
+            res.redirect('/customer/orders')
+        }).catch(err => {
+            req.flash('error','Something went wrong')
+            res.redirect('/cart')
+        }) 
+    })
+
+app.get('/admin/orders',admin,(req,res)=> {
+    Order.find({status: {$ne: 'completed'}},null, {sort: {createdAt: -1}}).populate('customerId','-password').exec((err, orders) => {
+        if(req.xhr){
+            res.json(orders)
+        }
+        else{
+            res.render('admin/orders')
+        }
+    })
+})
+
+
+    app.get("/logout", (req,res) => {
+        req.logout()
+        res.redirect('/login')
+    })
+  
 }
 
 
