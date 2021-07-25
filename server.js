@@ -30,7 +30,7 @@ let mongoStore = new MongoDbStore({
 
 //Session Config
 app.use(session({
-    secret: "thisismysecret",
+    secret: `${process.env.COOKIE_SECRET}`,
     resave: false,
     store: mongoStore,
     saveUninitialized: false,
@@ -43,7 +43,6 @@ const passportInit = require('./app/config/passport')
 passportInit(passport)
 app.use(passport.initialize())
 app.use(passport.session())
-
 app.use(flash())
 
 //assets

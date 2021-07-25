@@ -151,8 +151,8 @@ function initRoutes(app){
         }) 
     })
 
-app.get('/admin/orders',admin,(req,res)=> {
-    Order.find({status: {$ne: 'completed'}},null, {sort: {createdAt: -1}}).populate('customerId','-password').exec((err, orders) => {
+app.get('/admin/orders',admin,async(req,res)=> {
+    await Order.find({status: {$ne: 'completed'}},null, {sort: {createdAt: -1}}).populate('customerId','-password').exec((err, orders) => {
         if(req.xhr){
             res.json(orders)
         }
@@ -162,12 +162,30 @@ app.get('/admin/orders',admin,(req,res)=> {
     })
 })
 
+app.get('/customer/orders/:id',auth,async(req,res) => {
+    const order = await Order.findById(req.params.id)
+    //Authorize user
+    if(req.user._id.toString() === order.customerId.toString()){
+        res.render('customers/singleOrder', {order: order})
+    }else{
+        res.redirect('/')
+    }
+})
+
+app.post('/admin/order/status',admin, (req,res)=>{
+    Order.updateOne({_id:req.body.orderId},{$set: {status: req.body.status}}, (err,result) => {
+        if(err){
+            res.redirect('/admin/orders')
+        }
+        res.redirect('/admin/orders')
+    })
+})
+
 
     app.get("/logout", (req,res) => {
         req.logout()
         res.redirect('/login')
     })
-  
 }
 
 
